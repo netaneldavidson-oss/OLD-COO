@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Game – Colors + Sound</title>
+<style>
+body {
+  margin:0; font-family:Arial,sans-serif; background:#121212; color:#fff; display:flex; flex-direction:column; align-items:center; padding:20px;
+}
+h1 {font-size:28px; margin-bottom:10px;}
+#moves, #timer, #best {font-size:18px; margin-bottom:10px;}
+#message {font-size:16px; margin:10px; height:20px;}
+#grid {display:grid; grid-template-columns:repeat(6,100px); grid-gap:12px; margin-top:10px;}
+.card {width:100px; height:100px; background:#222; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:40px; cursor:pointer; user-select:none; transition:0.3s;}
+.card.open {background:#fff; transform:rotateY(180deg);}
+.card.matched {background:#0a0; cursor:default; color:#fff;}
+button {padding:10px 20px; font-size:16px; margin-top:20px; cursor:pointer; border-radius:8px; border:none; background:#0f0; color:#000; font-weight:bold;}
+canvas#confetti {position:fixed; inset:0; pointer-events:none; z-index:100;}
+</style>
+</head>
+<body>
+
+<h1>Memory Game – Colors + Sound</h1>
+<p id="moves">Moves: 0</p>
+<p id="timer">Time: 0s</p>
+<p id="best">Best Time: -</p>
+<p id="message"></p>
+<div id="grid"></div>
+<button onclick="startGame()">Restart Game</button>
+<canvas id="confetti"></canvas>
+
+<script>
+const colors = ["#f87171","#34d399","#60a5fa","#facc15","#a78bfa","#f472b6","#22c55e","#fb923c","#3b82f6","#fbbf24","#8b5cf6","#ec4899"];
+let firstCard=null, lock=false, moves=0, deck=[], timer=null, seconds=0, bestTime=localStorage.getItem("bestTime")||null;
+if(bestTime) document.getElementById("best").textContent="Best Time: "+bestTime+"s";
+
+const canvas=document.getElementById("confetti"), ctx=canvas.getContext("2d"), particles=[];
+function resizeCanvas(){canvas.width=window.innerWidth; canvas.height=window.innerHeight;}
+window.addEventListener("resize", resizeCanvas); resizeCanvas();
+function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
+function confettiBurst(){for(let i=0;i<100;i++){particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,vx:(Math.random()-0.5)*4,vy:(Math.random()-1.5)*4,size:Math.random()*6+4,color:randColor(),life:60+Math.random()*30});} if(!window.raf) loop();}
+function loop(){window.raf=requestAnimationFrame(loop); ctx.clearRect(0,0,canvas.width,canvas.height); particles=particles.filter(p=>p.life>0); for(const p of particles){p.x+=p.vx; p.y+=p.vy; p.vy+=0.1; p.life--; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,p.size,p.size*0.6);} if(particles.length===0){cancelAnimationFrame(window.raf);window.raf=null;}}
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a;}
+
+function startTimer(){clearInterval(timer); seconds=0; document.getElementById("timer").textContent="Time: 0s"; timer=setInterval(()=>{seconds++; document.getElementById("timer").textContent="Time: "+seconds+"s";},1000);}
+
+function playDing(){ // אפקט הצלחה
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const o=ctx.createOscillator();
+  const g=ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type="sine"; o.frequency.setValueAtTime(600,ctx.currentTime);
+  g.gain.setValueAtTime(0.1,ctx.currentTime);
+  o.start(); o.stop(ctx.currentTime+0.15);
+}
+
+function startGame(){
+  const grid=document.getElementById("grid"); grid.innerHTML=""; firstCard=null; lock=false; moves=0; document.getElementById("moves").textContent="Moves: 0"; document.getElementById("message").textContent="";
+  startTimer();
+  deck=shuffle([...colors,...colors]);
+  deck.forEach((color,index)=>{
+    const card=document.createElement("div"); card.className="card"; card.dataset.color=color; card.dataset.index=index;
+    card.style.background="#222";
+    card.addEventListener("click",()=>clickCard(card));
+    grid.appendChild(card);
+  });
+}
+
+function clickCard(card){
+  if(lock) return;
+  if(card.classList.contains("open")||card.classList.contains("matched")) return;
+  card.classList.add("open"); card.style.background=card.dataset.color;
+  if(!firstCard){firstCard=card; return;}
+  moves++; document.getElementById("moves").textContent="Moves: "+moves;
+  if(firstCard.dataset.color===card.dataset.color){
+    firstCard.classList.add("matched"); card.classList.add("matched");
+    firstCard=null;
+    playDing();
+    confettiBurst();
+    const messages=["Great!","Awesome!","Nice!","Cool!","Well done!"];
+    document.getElementById("message").textContent=messages[Math.floor(Math.random()*messages.length)];
+    if(document.querySelectorAll(".card.matched").length===deck.length){
+      clearInterval(timer);
+      if(!bestTime || seconds<bestTime){bestTime=seconds; localStorage.setItem("bestTime",bestTime);}
+      document.getElementById("best").textContent="Best Time: "+bestTime+"s";
+    }
+  }else{
+    lock=true; setTimeout(()=>{firstCard.classList.remove("open"); firstCard.style.background="#222"; card.classList.remove("open"); card.style.background="#222"; firstCard=null; lock=false; document.getElementById("message").textContent="";},800);
+  }
+}
+
+startGame();
+</script>
+
+</body>
+</html>
